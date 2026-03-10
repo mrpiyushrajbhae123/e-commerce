@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Study Player</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --surface2: #18181f;
+      --border: rgba(255, 255, 255, 0.06);
+      --accent: #f0a500;
+      --accent2: #e05a00;
+      --text: #e8e4d8;
+      --muted: rgba(232, 228, 216, 0.35);
+      --green: #3ddc84;
+      --red: #ff5c5c;
+      --radius-sm: 3px;
+      --radius-md: 4px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.03;
+      z-index: 999;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.4) 0,
+        rgba(255,255,255,0.4) 1px,
+        transparent 1px,
+        transparent 4px
+      );
+    }
+
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    .app {
+      display: grid;
+      height: 100vh;
+      grid-template-columns: 1fr 380px;
+      grid-template-rows: 56px 60px 1fr;
+      grid-template-areas:
+        "header header"
+        "urlbar urlbar"
+        "video notes";
+      transition: grid-template-columns 0.2s ease;
+    }
+
+    .header {
+      grid-area: header;
+      position: sticky;
+      top: 0;
+      z-index: 12;
+      background: rgba(10,10,15,0.96);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .logo {
+      margin: 0;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 32px;
+      letter-spacing: 1px;
+      color: var(--accent);
+      text-shadow: 0 0 12px rgba(240,165,0,0.4);
+    }
+
+    .subtitle {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .badge {
+      border: 1px solid var(--green);
+      color: var(--green);
+      font: 500 11px 'IBM Plex Mono', monospace;
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.6px;
+    }
+
+    .url-bar {
+      grid-area: urlbar;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 16px;
+      background: var(--surface);
+    }
+
+    .label {
+      font-family: 'IBM Plex Mono', monospace;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input, textarea, button {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    input:focus, textarea:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(240,165,0,0.05);
+      border-color: rgba(240,165,0,0.45);
+    }
+
+    #url-input {
+      height: 40px;
+      padding: 0 12px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      width: 100%;
+    }
+
+    .btn {
+      height: 40px;
+      padding: 0 14px;
+      cursor: pointer;
+      font: 500 14px 'Bebas Neue', sans-serif;
+      letter-spacing: 1px;
+      transition: 0.15s ease;
+    }
+
+    .btn:hover {
+      border-color: rgba(240,165,0,0.7);
+      color: var(--accent);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #111;
+      border: none;
+    }
+
+    .video-panel {
+      grid-area: video;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      position: relative;
+    }
+
+    .player-wrap {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      background: #05050a;
+    }
+
+    #video-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: none;
+    }
+
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      gap: 8px;
+      text-align: center;
+      color: var(--muted);
+      padding: 20px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .error-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5,5,10,0.92);
+      display: grid;
+      place-content: center;
+      text-align: center;
+      gap: 8px;
+      padding: 24px;
+      z-index: 4;
+    }
+
+    .error-overlay h3 {
+      margin: 0;
+      font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: 1px;
+      font-size: 30px;
+      color: var(--red);
+    }
+
+    .soft-warning {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      z-index: 3;
+      background: rgba(0,0,0,0.72);
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      font: 12px 'IBM Plex Mono', monospace;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .soft-warning button, .soft-warning a {
+      background: transparent;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 10px;
+      min-height: 56px;
+    }
+
+    .controls-left {
+      font: 12px 'IBM Plex Mono', monospace;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .controls-right {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .notes-panel {
+      grid-area: notes;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--surface);
+    }
+
+    .notes-head {
+      border-bottom: 1px solid var(--border);
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .notes-title {
+      margin: 0;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 1px;
+    }
+
+    .actions { display: flex; gap: 6px; }
+    .actions .btn { height: 30px; font-size: 12px; }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--border);
+      color: var(--muted);
+      height: 38px;
+      font: 500 13px 'IBM Plex Mono', monospace;
+      cursor: pointer;
+    }
+
+    .tab-btn.active { color: var(--accent); background: rgba(240,165,0,0.06); }
+
+    .tab-content {
+      flex: 1;
+      min-height: 0;
+      padding: 10px;
+      display: none;
+    }
+
+    .tab-content.active { display: flex; flex-direction: column; }
+
+    #notes-textarea {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 12px;
+    }
+
+    .timestamps-list {
+      flex: 1;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 8px;
+      background: #0e0e14;
+      margin-bottom: 8px;
+    }
+
+    .ts-empty {
+      height: 100%;
+      display: grid;
+      place-content: center;
+      text-align: center;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+    }
+
+    .ts-item {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      gap: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
+      padding: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .ts-time {
+      font: 500 12px 'IBM Plex Mono', monospace;
+      color: var(--accent);
+    }
+
+    .ts-note { font-size: 13px; word-break: break-word; }
+
+    .ts-form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+
+    #ts-input { height: 36px; padding: 0 10px; font-family: 'IBM Plex Mono', monospace; }
+
+    .prompts-wrap {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-right: 4px;
+    }
+
+    .prompt-category {
+      font: 500 12px 'IBM Plex Mono', monospace;
+      color: var(--accent);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .prompt-item {
+      position: relative;
+      border: 1px solid var(--border);
+      background: #0d0d13;
+      border-radius: var(--radius-md);
+      padding: 10px;
+      cursor: pointer;
+      transition: border-color 0.15s ease;
+    }
+
+    .prompt-item:hover { border-color: rgba(240,165,0,0.5); }
+    .prompt-text { margin: 0; white-space: pre-wrap; font: 12px/1.45 'IBM Plex Mono', monospace; }
+    .copy-hint {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      color: var(--muted);
+      font: 11px 'IBM Plex Mono', monospace;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .prompt-item:hover .copy-hint { opacity: 1; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.2s ease;
+      z-index: 99;
+      background: #111;
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font: 12px 'IBM Plex Mono', monospace;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      html, body { overflow: auto; }
+      .app {
+        height: auto;
+        min-height: 100vh;
+        grid-template-columns: 1fr;
+        grid-template-rows: 56px 60px 50vh 50vh;
+        grid-template-areas:
+          "header"
+          "urlbar"
+          "video"
+          "notes";
+      }
+      .video-panel { border-right: none; border-bottom: 1px solid var(--border); }
+      .controls { flex-wrap: wrap; }
+      .notes-head { flex-direction: column; align-items: flex-start; }
+      .actions { width: 100%; }
+      .actions .btn { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app-grid">
+    <header class="header">
+      <div class="brand">
+        <h1 class="logo">STUDY PLAYER</h1>
+        <span class="subtitle">by Anurag</span>
+      </div>
+      <div class="badge">AD-FREE MODE</div>
+    </header>
+
+    <section class="url-bar">
+      <span class="label">YT LINK →</span>
+      <input id="url-input" type="text" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ / youtu.be/... / VIDEO_ID" />
+      <button class="btn btn-primary" id="load-btn">LOAD ▶</button>
+    </section>
+
+    <section class="video-panel">
+      <div class="player-wrap" id="player-wrap">
+        <iframe id="video-frame" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+        <div class="empty-state" id="empty-state">
+          <div style="font-size:32px;">🎓</div>
+          <div>Paste YouTube link above and hit <b>LOAD ▶</b></div>
+          <div>Ad-lite study mode with notes + timestamps + prompts</div>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="controls-left" id="video-meta">Video ID: —</div>
+        <div class="controls-right">
+          <button class="btn" id="open-yt-btn">YT ↗</button>
+          <button class="btn" id="copy-url-btn">COPY</button>
+          <button class="btn" id="theater-btn">THEATER</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="notes-panel" id="notes-panel">
+      <div class="notes-head">
+        <h2 class="notes-title">STUDY ZONE</h2>
+        <div class="actions">
+          <button class="btn" id="save-notes-btn">💾 Save Notes</button>
+          <button class="btn" id="clear-notes-btn">🗑 Clear Notes</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="notes">Notes</button>
+        <button class="tab-btn" data-tab="timestamps">Timestamps</button>
+        <button class="tab-btn" data-tab="prompts">Prompts</button>
+      </div>
+
+      <div class="tab-content active" id="tab-notes">
+        <textarea id="notes-textarea" placeholder="What did you learn?
+- Key ideas
+- Quotes
+- Action steps
+- Questions to revisit"></textarea>
+      </div>
+
+      <div class="tab-content" id="tab-timestamps">
+        <div class="timestamps-list" id="timestamps-list"></div>
+        <div class="ts-form">
+          <input id="ts-input" placeholder="Kya hua is moment mein?" />
+          <button class="btn" id="mark-ts-btn">+ MARK</button>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-prompts">
+        <div class="prompts-wrap" id="prompts-wrap"></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let currentVideoId = null;
+    let currentUrl = null;
+    let isTheaterMode = false;
+    let timestamps = [];
+    let activeTab = 'notes';
+    let toastTimer = null;
+    let pasteDebounceTimer = null;
+    let fallbackWarningTimer = null;
+
+    const promptCategories = [
+      {
+        name: 'Role Prompting',
+        prompts: [
+          'Act as a [specific expert] with 15 years of experience in [field]. Your task is to [goal]. Be specific and practical.',
+          'You are a world-class direct response copywriter who specializes in [niche]. Write copy that [specific outcome].'
+        ]
+      },
+      {
+        name: 'Chain of Thought',
+        prompts: [
+          'Think step by step before answering. First analyze the problem, then list your approach, then give the final answer.',
+          'Break this down into steps: Step 1) [analyze], Step 2) [plan], Step 3) [execute]. Show your reasoning at each step.'
+        ]
+      },
+      {
+        name: 'Few-Shot (Examples dena)',
+        prompts: [
+          'Here are 2 examples of what I want:\nExample 1: [input] → [output]\nExample 2: [input] → [output]\nNow do the same for: [your input]'
+        ]
+      },
+      {
+        name: 'Output Format Control',
+        prompts: [
+          'Respond ONLY in this format:\nHEADLINE: [...]\nSUBHEADLINE: [...]\nBODY: [...]\nCTA: [...]\nNo extra explanation needed.',
+          'Give me exactly 5 options. Format as numbered list. Each under 15 words. No explanation.'
+        ]
+      },
+      {
+        name: 'Refinement',
+        prompts: [
+          'This is good but make it: more specific, shorter, more emotional, and add one concrete example. Keep the core message.',
+          'Critique this [content] as if you are a harsh editor. What are the 3 weakest parts? Then rewrite it fixing those issues.'
+        ]
+      },
+      {
+        name: 'Copywriting Prompts',
+        prompts: [
+          'Write 10 email subject lines for [product/offer] targeting [avatar]. Use curiosity, benefit, and urgency. Mix different styles.',
+          'Write a PAS email for [product]:\nProblem: [specific pain]\nAgitate: make it hurt more\nSolution: your offer\nCTA: one clear action\nKeep it under 200 words.',
+          'Write 5 Facebook ad hooks for [offer] targeting [audience]. Each hook should stop scroll in 3 seconds. Start with a pattern interrupt.'
+        ]
+      },
+      {
+        name: 'Research Prompts',
+        prompts: [
+          'What are the top 10 problems [niche audience] face? Rank by frequency and severity. For each problem, suggest a potential solution I could offer.',
+          "Analyze this competitor's offer: [details]. What are their strengths, weaknesses, and gaps I can exploit to position myself differently?"
+        ]
+      },
+      {
+        name: 'System Prompt Template',
+        prompts: [
+          'You are my AI assistant for [your business].\nMy niche: [niche]\nMy avatar: [ideal customer]\nMy offer: [what you sell]\nMy tone: [how you write]\nAlways keep responses actionable, specific to my niche, and under [X] words unless asked otherwise.'
+        ]
+      }
+    ];
+
+    const appGrid = document.getElementById('app-grid');
+    const urlInput = document.getElementById('url-input');
+    const loadBtn = document.getElementById('load-btn');
+    const frame = document.getElementById('video-frame');
+    const emptyState = document.getElementById('empty-state');
+    const videoMeta = document.getElementById('video-meta');
+    const openYtBtn = document.getElementById('open-yt-btn');
+    const copyUrlBtn = document.getElementById('copy-url-btn');
+    const theaterBtn = document.getElementById('theater-btn');
+    const notesPanel = document.getElementById('notes-panel');
+    const notesTextarea = document.getElementById('notes-textarea');
+    const tsInput = document.getElementById('ts-input');
+    const timestampsList = document.getElementById('timestamps-list');
+    const toast = document.getElementById('toast');
+
+    function escHtml(s) {
+      return String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    }
+
+    function extractVideoId(raw) {
+      if (!raw) return null;
+      const value = raw.trim();
+      const patterns = [
+        /[?&]v=([a-zA-Z0-9_-]{11})/,
+        /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+        /embed\/([a-zA-Z0-9_-]{11})/,
+        /shorts\/([a-zA-Z0-9_-]{11})/,
+        /^([a-zA-Z0-9_-]{11})$/
+      ];
+      for (const pattern of patterns) {
+        const m = value.match(pattern);
+        if (m) return m[1];
+      }
+      return null;
+    }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function removeErrorOverlay() {
+      document.querySelectorAll('.error-overlay,.soft-warning').forEach(el => el.remove());
+    }
+
+    function handleYTMessage(event) {
+      if (!event?.data) return;
+      const text = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+      if (/"errorCode"\s*:\s*(101|150)/.test(text) || /"info"\s*:\s*(101|150)/.test(text)) {
+        showEmbedError();
+      }
+    }
+
+    function showEmbedError() {
+      if (!currentVideoId || document.querySelector('.error-overlay')) return;
+      removeErrorOverlay();
+      const overlay = document.createElement('div');
+      overlay.className = 'error-overlay';
+      overlay.innerHTML = `
+        <div style="font-size:36px;">⛔</div>
+        <h3>EMBEDDING DISABLED</h3>
+        <div style="max-width:560px; margin:0 auto; color:var(--text); font-size:14px;">
+          Error 153 — Is video ke creator ne embedding band kar di hai. Yeh YouTube ki restriction hai — bypass nahi ho sakti.
+        </div>
+        <div><a class="btn btn-primary" style="display:inline-flex; align-items:center; text-decoration:none;" target="_blank" href="https://www.youtube.com/watch?v=${currentVideoId}">▶ YOUTUBE PE DEKHO</a></div>
+      `;
+      document.getElementById('player-wrap').appendChild(overlay);
+    }
+
+    function showSoftWarning() {
+      if (!currentVideoId || document.querySelector('.soft-warning') || document.querySelector('.error-overlay')) return;
+      const bar = document.createElement('div');
+      bar.className = 'soft-warning';
+      bar.innerHTML = `
+        <span>⚠ Agar Error 153 dikh raha hai — creator ne embedding band ki hai.</span>
+        <span>
+          <a target="_blank" href="https://www.youtube.com/watch?v=${currentVideoId}">YouTube pe directly dekho ↗</a>
+          <button type="button" title="dismiss">✕</button>
+        </span>
+      `;
+      bar.querySelector('button').addEventListener('click', () => bar.remove());
+      document.getElementById('player-wrap').appendChild(bar);
+    }
+
+    function loadVideo() {
+      const input = urlInput.value.trim();
+      if (!input) return showToast('Pehle link paste karo!');
+      const videoId = extractVideoId(input);
+      if (!videoId) return showToast('Valid YouTube link nahi hai ❌');
+
+      currentVideoId = videoId;
+      currentUrl = input.startsWith('http') ? input : `https://www.youtube.com/watch?v=${videoId}`;
+      removeErrorOverlay();
+
+      frame.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&color=white`;
+      frame.style.display = 'block';
+      emptyState.style.display = 'none';
+      videoMeta.textContent = `Video ID: ${videoId}`;
+
+      clearTimeout(fallbackWarningTimer);
+      fallbackWarningTimer = setTimeout(showSoftWarning, 4500);
+
+      localStorage.setItem('study_last_url', input);
+      showToast('Video loaded — focus mode ON ✓');
+    }
+
+    function renderTimestamps() {
+      if (!timestamps.length) {
+        timestampsList.innerHTML = '<div class="ts-empty">No timestamps yet.<br>Add one from below.</div>';
+        return;
+      }
+      timestampsList.innerHTML = timestamps.map(ts => `
+        <div class="ts-item" data-id="${ts.id}" title="Double click to delete">
+          <div class="ts-time">${escHtml(ts.time)}</div>
+          <div class="ts-note">${escHtml(ts.note)}</div>
+        </div>
+      `).join('');
+      timestampsList.querySelectorAll('.ts-item').forEach(item => {
+        item.ondblclick = () => deleteTs(Number(item.dataset.id));
+      });
+    }
+
+    function addTimestamp() {
+      const note = tsInput.value.trim();
+      if (!note) return;
+      const item = {
+        id: Date.now(),
+        time: new Date().toLocaleTimeString(),
+        note,
+        videoId: currentVideoId || '',
+        createdAt: new Date().toISOString()
+      };
+      timestamps.unshift(item);
+      localStorage.setItem('study_timestamps', JSON.stringify(timestamps));
+      tsInput.value = '';
+      renderTimestamps();
+      showToast('Timestamp marked ✓');
+    }
+
+    function deleteTs(id) {
+      timestamps = timestamps.filter(ts => ts.id !== id);
+      localStorage.setItem('study_timestamps', JSON.stringify(timestamps));
+      renderTimestamps();
+    }
+
+    function toggleTheater() {
+      isTheaterMode = !isTheaterMode;
+      if (isTheaterMode) {
+        appGrid.style.gridTemplateColumns = '1fr 0px';
+        notesPanel.style.display = 'none';
+        theaterBtn.textContent = 'EXIT';
+      } else {
+        appGrid.style.gridTemplateColumns = '1fr 380px';
+        notesPanel.style.display = 'flex';
+        theaterBtn.textContent = 'THEATER';
+      }
+    }
+
+    async function copyPrompt(el) {
+      const text = el.querySelector('.prompt-text')?.innerText || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Prompt copied — Claude mein paste karo ✓');
+      } catch {
+        showToast('Clipboard blocked by browser ⚠');
+      }
+    }
+
+    function saveNotes() {
+      localStorage.setItem('study_notes', notesTextarea.value);
+      showToast('Notes saved locally ✓');
+    }
+
+    function renderPrompts() {
+      const wrap = document.getElementById('prompts-wrap');
+      wrap.innerHTML = promptCategories.map(cat => `
+        <section>
+          <div class="prompt-category">${escHtml(cat.name)}</div>
+          ${cat.prompts.map(text => `
+            <div class="prompt-item">
+              <span class="copy-hint">COPY ↗</span>
+              <pre class="prompt-text">${escHtml(text)}</pre>
+            </div>
+          `).join('')}
+        </section>
+      `).join('');
+
+      wrap.querySelectorAll('.prompt-item').forEach(el => {
+        el.addEventListener('click', () => copyPrompt(el));
+      });
+    }
+
+    loadBtn.addEventListener('click', loadVideo);
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loadVideo();
+    });
+    urlInput.addEventListener('paste', () => {
+      clearTimeout(pasteDebounceTimer);
+      pasteDebounceTimer = setTimeout(loadVideo, 300);
+    });
+
+    window.addEventListener('message', handleYTMessage);
+
+    openYtBtn.addEventListener('click', () => {
+      if (!currentVideoId) return showToast('No video loaded yet');
+      window.open(`https://www.youtube.com/watch?v=${currentVideoId}`, '_blank');
+    });
+
+    copyUrlBtn.addEventListener('click', async () => {
+      if (!currentUrl) return showToast('No URL to copy');
+      try {
+        await navigator.clipboard.writeText(currentUrl);
+        showToast('URL copied ✓');
+      } catch {
+        showToast('Clipboard blocked by browser ⚠');
+      }
+    });
+
+    theaterBtn.addEventListener('click', toggleTheater);
+
+    notesTextarea.addEventListener('input', () => {
+      localStorage.setItem('study_notes', notesTextarea.value);
+    });
+
+    document.getElementById('save-notes-btn').addEventListener('click', saveNotes);
+    document.getElementById('clear-notes-btn').addEventListener('click', () => {
+      if (!confirm('Clear all notes?')) return;
+      notesTextarea.value = '';
+      localStorage.setItem('study_notes', '');
+      showToast('Notes cleared');
+    });
+
+    document.getElementById('mark-ts-btn').addEventListener('click', addTimestamp);
+    tsInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addTimestamp();
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeTab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+        document.getElementById('tab-notes').classList.toggle('active', activeTab === 'notes');
+        document.getElementById('tab-timestamps').classList.toggle('active', activeTab === 'timestamps');
+        document.getElementById('tab-prompts').classList.toggle('active', activeTab === 'prompts');
+      });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      notesTextarea.value = localStorage.getItem('study_notes') || '';
+      timestamps = JSON.parse(localStorage.getItem('study_timestamps') || '[]');
+      renderTimestamps();
+      renderPrompts();
+
+      const last = localStorage.getItem('study_last_url');
+      if (last) {
+        urlInput.value = last;
+        loadVideo();
+      }
+    });
+  </script>
+</body>
+</html>
