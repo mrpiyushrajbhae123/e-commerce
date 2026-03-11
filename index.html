@@ -550,6 +550,7 @@
     let toastTimer = null;
     let pasteDebounceTimer = null;
     let fallbackWarningTimer = null;
+    let playerLoaded = false;
 
     const promptCategories = [
       {
@@ -681,7 +682,7 @@
     }
 
     function showSoftWarning() {
-      if (!currentVideoId || document.querySelector('.soft-warning') || document.querySelector('.error-overlay')) return;
+      if (!currentVideoId || playerLoaded || document.querySelector('.soft-warning') || document.querySelector('.error-overlay')) return;
       const bar = document.createElement('div');
       bar.className = 'soft-warning';
       bar.innerHTML = `
@@ -704,17 +705,46 @@
       currentVideoId = videoId;
       currentUrl = input.startsWith('http') ? input : `https://www.youtube.com/watch?v=${videoId}`;
       removeErrorOverlay();
+      playerLoaded = false;
 
       frame.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&color=white`;
       frame.style.display = 'block';
       emptyState.style.display = 'none';
       videoMeta.textContent = `Video ID: ${videoId}`;
 
+      frame.onload = () => {
+        playerLoaded = true;
+        clearTimeout(fallbackWarningTimer);
+        const strip = document.querySelector('.soft-warning');
+        if (strip) strip.remove();
+      };
+
       clearTimeout(fallbackWarningTimer);
       fallbackWarningTimer = setTimeout(showSoftWarning, 4500);
 
       localStorage.setItem('study_last_url', input);
       showToast('Video loaded — focus mode ON ✓');
+    }
+
+    async function copyText(text) {
+      if (!text) return false;
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', 'true');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        ta.style.pointerEvents = 'none';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      }
     }
 
     function renderTimestamps() {
@@ -771,10 +801,9 @@
 
     async function copyPrompt(el) {
       const text = el.querySelector('.prompt-text')?.innerText || '';
-      try {
-        await navigator.clipboard.writeText(text);
+      if (await copyText(text)) {
         showToast('Prompt copied — Claude mein paste karo ✓');
-      } catch {
+      } else {
         showToast('Clipboard blocked by browser ⚠');
       }
     }
@@ -821,10 +850,9 @@
 
     copyUrlBtn.addEventListener('click', async () => {
       if (!currentUrl) return showToast('No URL to copy');
-      try {
-        await navigator.clipboard.writeText(currentUrl);
+      if (await copyText(currentUrl)) {
         showToast('URL copied ✓');
-      } catch {
+      } else {
         showToast('Clipboard blocked by browser ⚠');
       }
     });
@@ -860,7 +888,11 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       notesTextarea.value = localStorage.getItem('study_notes') || '';
-      timestamps = JSON.parse(localStorage.getItem('study_timestamps') || '[]');
+      try {
+        timestamps = JSON.parse(localStorage.getItem('study_timestamps') || '[]');
+      } catch {
+        timestamps = [];
+      }
       renderTimestamps();
       renderPrompts();
 
